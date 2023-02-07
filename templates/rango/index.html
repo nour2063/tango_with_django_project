@@ -1,4 +1,7 @@
-<!doctype html>
+<!DOCTYPE html>
+
+{% load staticfiles %} <!-- New line -->
+
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,6 +10,7 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Rango</title>
 </head>
+
 <body>
     <h1>Rango says...</h1>
     <div>
@@ -14,7 +18,10 @@
         <strong>{{ boldmessage }}</strong><br />
     </div>
     <div>
-        <a href="/rango/about">About</a><br />
+        <a href="/rango/about/">About</a><br />
+        <img src="{% static 'images/rango.jpg' %}" alt="Picture of Rango" /> <!-- New line -->
     </div>
 </body>
+
+
 </html>
