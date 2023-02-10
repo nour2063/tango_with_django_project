@@ -1,14 +1,15 @@
 import os
+
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
+from datetime import datetime
 from rango.models import Category, Page
 from rango.forms import CategoryForm, PageForm
 from django.shortcuts import redirect
 from rango.forms import UserForm, UserProfileForm
-from django.contrib.auth import authenticate, login
-from django.http import HttpResponse
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
 
 
 def index(request):
@@ -19,16 +20,28 @@ def index(request):
     # that will be passed to the template engine.
     category_list = Category.objects.order_by('-likes')[:5]
     page_list = Page.objects.order_by('-views')[:5]
+
     context_dict = {'boldmessage': 'Crunchy, creamy, cookie, candy, cupcake!',
                     'categories': category_list,
                     'pages': page_list}
-    # Render the response and send it back!
-    return render(request, 'rango/index.html', context=context_dict)
+
+    visitor_cookie_handler(request)
+
+    response = render(request, 'rango/index.html', context=context_dict)
+    return response
 
 
 def about(request):
     context_dict = {'boldmessage': 'Crunchy, creamy, cookie, candy, cupcake!',
-                    'authorname': 'andrei'}
+                    'authorname': 'Nour'}
+
+    visitor_cookie_handler(request)
+    context_dict['visits'] = request.session['visits']
+
+    if request.session.test_cookie_worked():
+        print("TEST COOKIE WORKED!")
+        request.session.delete_test_cookie()
+
     return render(request, 'rango/about.html', context=context_dict)
 
 
@@ -36,14 +49,17 @@ def show_category(request, category_name_slug):
     # Create a context dictionary which we can pass
     # to the template rendering engine.
     context_dict = {}
+
     try:
         # Can we find a category name slug with the given name?
         # If we can't, the .get() method raises a DoesNotExist exception.
         # The .get() method returns one model instance or raises an exception.
         category = Category.objects.get(slug=category_name_slug)
+
         # Retrieve all of the associated pages.
         # The filter() will return a list of page objects or an empty list.
         pages = Page.objects.filter(category=category)
+
         # Adds our results list to the template context under name pages.
         context_dict['pages'] = pages
         # We also add the category object from
@@ -56,10 +72,12 @@ def show_category(request, category_name_slug):
         # the template will display the "no category" message for us.
         context_dict['category'] = None
         context_dict['pages'] = None
+
     # Go render the response and return it to the client.
     return render(request, 'rango/category.html', context=context_dict)
 
 
+@login_required
 def add_category(request):
     form = CategoryForm()
     # A HTTP POST?
@@ -81,23 +99,28 @@ def add_category(request):
     return render(request, 'rango/add_category.html', {'form': form})
 
 
+@login_required
 def add_page(request, category_name_slug):
     try:
         category = Category.objects.get(slug=category_name_slug)
     except Category.DoesNotExist:
         category = None
+
     # You cannot add a page to a Category that does not exist...
     if category is None:
         return redirect('/rango/')
+
     form = PageForm()
     if request.method == 'POST':
         form = PageForm(request.POST)
+
         if form.is_valid():
             if category:
                 page = form.save(commit=False)
                 page.category = category
                 page.views = 0
                 page.save()
+
                 return redirect(reverse('rango:show_category', kwargs={'category_name_slug': category_name_slug}))
         else:
             print(form.errors)
@@ -203,7 +226,7 @@ def user_login(request):
 
 @login_required
 def restricted(request):
-    return HttpResponse("Since you're logged in, you can see this text!")
+    return render(request, 'rango/restricted.html')
 
 
 # Use the login_required() decorator to ensure only those logged in can
@@ -214,3 +237,29 @@ def user_logout(request):
     logout(request)
     # Take the user back to the homepage.
     return redirect(reverse('rango:index'))
+
+
+# A helper method
+def get_server_side_cookie(request, cookie, default_val=None):
+    val = request.session.get(cookie)
+    if not val:
+        val = default_val
+    return val
+
+
+def visitor_cookie_handler(request):
+    visits = int(get_server_side_cookie(request, 'visits', '1'))
+    last_visit_cookie = get_server_side_cookie(request, 'last_visit', str(datetime.now()))
+    last_visit_time = datetime.strptime(last_visit_cookie[:-7], '%Y-%m-%d %H:%M:%S')
+
+    # If it's been more than a day since the last visit...
+    if (datetime.now() - last_visit_time).days > 0:
+        visits = visits + 1
+        # Update the last visit cookie now that we have updated the count
+        request.session['last_visit'] = str(datetime.now())
+    else:
+        # Set the last visit cookie
+        request.session['last_visit'] = last_visit_cookie
+
+    # Update/set the visits cookie
+    request.session['visits'] = visits

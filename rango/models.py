@@ -6,6 +6,7 @@ from django.template.defaultfilters import slugify
 class Category(models.Model):
     # constants:
     MAX_NAME_LENGTH = 128
+
     # instance fields:
     name = models.CharField(max_length=MAX_NAME_LENGTH, unique=True)
     views = models.IntegerField(default=0)
@@ -27,6 +28,7 @@ class Page(models.Model):
     # constants:
     MAX_TITLE_LENGTH = 128
     MAX_URL_LENGTH = 200
+
     # instance fields:
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     title = models.CharField(max_length=MAX_TITLE_LENGTH)
